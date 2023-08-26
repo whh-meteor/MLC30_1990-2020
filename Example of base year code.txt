@@ -1,0 +1,550 @@
+var table: Table users/Myanmar
+var table: Table users/value2020
+
+var roi = table;
+
+function cloudMaskL8(image) {
+  var cloudShadowBitMask = 1 << 3;  
+  var cloudsBitMask = 1 << 5;
+  var qa = image.select('QA_PIXEL');   
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0).and(qa.bitwiseAnd(cloudsBitMask).eq(0));
+  return image.updateMask(mask);}
+
+function L8_ndvi(image){
+  return image.addBands(image.normalizedDifference(['SR_B5', 'SR_B4']).rename("NDVI"));
+}
+
+function L8_ndwi(image){
+  return image.addBands(image.normalizedDifference(['SR_B3', 'SR_B5']).rename('NDWI'));
+} 
+
+function L8_ndbi(image){
+  return image.addBands(image.normalizedDifference(['SR_B6', 'SR_B5']).rename('NDBI'));
+} 
+
+function L8_rvi(image){
+      
+        var rvi = image.expression('NIR / Red', {
+        'NIR': image.select('SR_B5'),
+        'Red': image.select('SR_B4')
+        }).float();
+        return image.addBands(rvi.rename('RVI'));
+    }
+
+function L8_evi(image){
+      var evi = image.expression('2.5 * ((NIR - RED) / (NIR + 6 * RED - 7.5 * BLUE + 1))', {
+    'NIR' : image.select('SR_B5'),
+    'RED' : image.select('SR_B4'),
+    'BLUE': image.select('SR_B2')
+  }).float();
+  return image.addBands(evi.rename('EVI'));
+}
+
+// function L8_glcm(image,j){
+//   var iv = image.select('SR_B1','SR_B2','SR_B3','SR_B4','SR_B5','SR_B6','SR_B7','NDVI','NDWI','NDBI','EVI','RVI').toUint16();
+//   var glcm = iv.glcmTexture({size: 3});
+//   return image.addBands(glcm.rename(j+'glcm'));
+// }
+
+
+function Band_rename(image,j){
+  return image.select(
+    ['SR_B1','SR_B2','SR_B3','SR_B4','SR_B5','SR_B6','SR_B7','NDVI','NDWI','NDBI','EVI','RVI',
+    'SR_B1_contrast','SR_B2_contrast','SR_B3_contrast','SR_B4_contrast','SR_B5_contrast','SR_B6_contrast','SR_B7_contrast','NDVI_contrast','NDBI_contrast','NDWI_contrast','RVI_contrast','EVI_contrast',
+    'SR_B1_ent','SR_B2_ent','SR_B3_ent','SR_B4_ent','SR_B5_ent','SR_B6_ent','SR_B7_ent','NDVI_ent','NDBI_ent','NDWI_ent','EVI_ent','RVI_ent',
+    'SR_B1_corr','SR_B2_corr','SR_B3_corr','SR_B4_corr','SR_B5_corr','SR_B6_corr','SR_B7_corr','NDVI_corr','NDBI_corr','NDWI_corr','EVI_corr','RVI_corr',
+    'SR_B1_diss','SR_B2_diss','SR_B3_diss','SR_B4_diss','SR_B5_diss','SR_B6_diss','SR_B7_diss','NDVI_diss','NDBI_diss','NDWI_diss','EVI_diss','RVI_diss'],
+    [j+'SR_B1',j+'SR_B2',j+'SR_B3',j+'SR_B4',j+'SR_B5',j+'SR_B6',j+'SR_B7',j+'NDVI',j+'NDWI',j+'NDBI',j+'EVI',j+'RVI',
+    j+'SR_B1_contrast',j+'SR_B2_contrast',j+'SR_B3_contrast',j+'SR_B4_contrast',j+'SR_B5_contrast',j+'SR_B6_contrast',j+'SR_B7_contrast',j+'NDVI_contrast',j+'NDBI_contrast',j+'NDWI_contrast',j+'RVI_contrast',j+'EVI_contrast',
+    j+'SR_B1_ent',j+'SR_B2_ent',j+'SR_B3_ent',j+'SR_B4_ent',j+'SR_B5_ent',j+'SR_B6_ent',j+'SR_B7_ent',j+'NDVI_ent',j+'NDBI_ent',j+'NDWI_ent',j+'EVI_ent',j+'RVI_ent',
+    j+'SR_B1_corr',j+'SR_B2_corr',j+'SR_B3_corr',j+'SR_B4_corr',j+'SR_B5_corr',j+'SR_B6_corr',j+'SR_B7_corr',j+'NDVI_corr',j+'NDBI_corr',j+'NDWI_corr',j+'EVI_corr',j+'RVI_corr',
+    j+'SR_B1_diss',j+'SR_B2_diss',j+'SR_B3_diss',j+'SR_B4_diss',j+'SR_B5_diss',j+'SR_B6_diss',j+'SR_B7_diss',j+'NDVI_diss',j+'NDBI_diss',j+'NDWI_diss',j+'EVI_diss',j+'RVI_diss']
+    )}
+
+function add_Bands(image1,image2){
+  return image1.addBands(image2.select(".*"));
+}
+
+
+
+
+//"LANDSAT/LT05/C01/T1_SR" 'LANDSAT/LC08/C01/T1_SR'
+var datasat12 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+                  .filterBounds(roi)
+                  .filterDate('2020-01-01','2020-02-28')
+                  .map(cloudMaskL8)
+                  .map(L8_ndvi)
+                  .map(L8_ndwi)
+                  .map(L8_ndbi)
+                  .map(L8_evi)
+                  .map(L8_rvi)
+                  //.map(L8_glcm);
+                  //.sort('CLOUD_COVER');
+var image12 = datasat12.median().clip(roi);
+
+var iv1 = image12.select('SR_B1').toUint16();
+var glcm12_SR_B1 = iv1.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B1);
+var iv2 = image12.select('SR_B2').toUint16();
+var glcm12_SR_B2 = iv2.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B2);
+var iv3 = image12.select('SR_B3').toUint16();
+var glcm12_SR_B3 = iv3.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B3);
+var iv4 = image12.select('SR_B4').toUint16();
+var glcm12_SR_B4 = iv4.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B4);
+var iv5 = image12.select('SR_B5').toUint16();
+var glcm12_SR_B5 = iv5.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B5);
+var iv6 = image12.select('SR_B6').toUint16();
+var glcm12_SR_B6 = iv6.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B6);
+var iv7 = image12.select('SR_B7').toUint16();
+var glcm12_SR_B7 = iv7.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_SR_B7);
+var iv8 = image12.select('NDVI').toUint16();
+var glcm12_NDVI = iv8.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_NDVI);
+var iv9 = image12.select('NDWI').toUint16();
+var glcm12_NDWI = iv9.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_NDWI);
+var iv10 = image12.select('NDBI').toUint16();
+var glcm12_NDBI = iv10.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_NDBI);
+var iv11 = image12.select('EVI').toUint16();
+var glcm12_EVI = iv11.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_EVI);
+var iv12 = image12.select('RVI').toUint16();
+var glcm12_RVI = iv12.glcmTexture({size: 3});
+var image12 = add_Bands(image12,glcm12_RVI);
+
+
+
+//"LANDSAT/LT05/C01/T1_SR" 'LANDSAT/LC08/C01/T1_SR'
+var datasat39 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+                  .filterBounds(roi)
+                  .filterDate('2020-03-01','2020-09-30')
+                  .map(cloudMaskL8)
+                  .map(L8_ndvi)
+                  .map(L8_ndwi)
+                  .map(L8_ndbi)
+                  .map(L8_evi)
+                  .map(L8_rvi);
+                  //.sort('CLOUD_COVER');
+var image39 = datasat39.median().clip(roi);
+
+var iv1 = image39.select('SR_B1').toUint16();
+var glcm39_SR_B1 = iv1.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B1);
+var iv2 = image39.select('SR_B2').toUint16();
+var glcm39_SR_B2 = iv2.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B2);
+var iv3 = image39.select('SR_B3').toUint16();
+var glcm39_SR_B3 = iv3.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B3);
+var iv4 = image39.select('SR_B4').toUint16();
+var glcm39_SR_B4 = iv4.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B4);
+var iv5 = image39.select('SR_B5').toUint16();
+var glcm39_SR_B5 = iv5.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B5);
+var iv6 = image39.select('SR_B6').toUint16();
+var glcm39_SR_B6 = iv6.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B6);
+var iv7 = image39.select('SR_B7').toUint16();
+var glcm39_SR_B7 = iv7.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_SR_B7);
+var iv8 = image39.select('NDVI').toUint16();
+var glcm39_NDVI = iv8.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_NDVI);
+var iv9 = image39.select('NDWI').toUint16();
+var glcm39_NDWI = iv9.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_NDWI);
+var iv10 = image39.select('NDBI').toUint16();
+var glcm39_NDBI = iv10.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_NDBI);
+var iv11 = image39.select('EVI').toUint16();
+var glcm39_EVI = iv11.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_EVI);
+var iv12 = image39.select('RVI').toUint16();
+var glcm39_RVI = iv12.glcmTexture({size: 3});
+var image39 = add_Bands(image39,glcm39_RVI);
+
+
+
+//"LANDSAT/LT05/C01/T1_SR" 'LANDSAT/LC08/C01/T1_SR'
+var datasat1012 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+                  .filterBounds(roi)
+                  .filterDate('2020-10-01','2020-12-31')
+                  .map(cloudMaskL8)
+                  .map(L8_ndvi)
+                  .map(L8_ndwi)
+                  .map(L8_ndbi)
+                  .map(L8_evi)
+                  .map(L8_rvi);
+                  //.sort('CLOUD_COVER');
+var image1012 = datasat1012.median().clip(roi);
+
+var iv1 = image1012.select('SR_B1').toUint16();
+var glcm1012_SR_B1 = iv1.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B1);
+var iv2 = image1012.select('SR_B2').toUint16();
+var glcm1012_SR_B2 = iv2.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B2);
+var iv3 = image1012.select('SR_B3').toUint16();
+var glcm1012_SR_B3 = iv3.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B3);
+var iv4 = image1012.select('SR_B4').toUint16();
+var glcm1012_SR_B4 = iv4.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B4);
+var iv5 = image1012.select('SR_B5').toUint16();
+var glcm1012_SR_B5 = iv5.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B5);
+var iv6 = image1012.select('SR_B6').toUint16();
+var glcm1012_SR_B6 = iv6.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B6);
+var iv7 = image1012.select('SR_B7').toUint16();
+var glcm1012_SR_B7 = iv7.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_SR_B7);
+var iv8 = image1012.select('NDVI').toUint16();
+var glcm1012_NDVI = iv8.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_NDVI);
+var iv9 = image1012.select('NDWI').toUint16();
+var glcm1012_NDWI = iv9.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_NDWI);
+var iv10 = image1012.select('NDBI').toUint16();
+var glcm1012_NDBI = iv10.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_NDBI);
+var iv11 = image1012.select('EVI').toUint16();
+var glcm1012_EVI = iv11.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_EVI);
+var iv12 = image1012.select('RVI').toUint16();
+var glcm1012_RVI = iv12.glcmTexture({size: 3});
+var image1012 = add_Bands(image1012,glcm1012_RVI);
+print(image1012)
+
+//"LANDSAT/LT05/C01/T1_SR" 'LANDSAT/LC08/C01/T1_SR'
+var datasatall = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+                  .filterBounds(roi)
+                  .filterDate('2020-01-01','2020-12-31')
+                  .map(cloudMaskL8)
+                  .map(L8_ndvi)
+                  .map(L8_ndwi)
+                  .map(L8_ndbi)
+                  .map(L8_evi)
+                  .map(L8_rvi);
+                  //.sort('CLOUD_COVER');
+var imageall = datasatall.median().clip(roi);
+
+
+//Map.addLayer(classification_image, {bands: ['1SR_B4', '1SR_B3', '1SR_B2'], min: 0, max: 1500}, 'Landsat8');
+Map.addLayer(imageall, {bands: ['SR_B4', 'SR_B3', 'SR_B2'], min: 0, max: 2200}, 'Landsat8');
+
+//var data_collection = datasat.filter(ee.Filter.calendarRange(1,1,"month")); 
+//var Jan_Image = data_collection.median().clip(roi);
+var image12 = Band_rename(image12,1);
+var classification_image = image12;
+
+//var data_collection = datasat.filter(ee.Filter.calendarRange(2,2,"month")); 
+//var Feb_Image = data_collection.median().clip(roi);
+var image39 = Band_rename(image39,2);
+var classification_image = add_Bands(classification_image,image39);
+
+//var data_collection = datasat.filter(ee.Filter.calendarRange(3,3,"month")); 
+//var Mar_Image = data_collection.median().clip(roi);
+var image1012 = Band_rename(image1012,3);
+var classification_image = add_Bands(classification_image,image1012);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(4,4,"month")); 
+// var Apr_Image = data_collection.median().clip(roi);
+// var Apr_Image = Band_rename(Apr_Image,4);
+// var classification_image = add_Bands(classification_image,Apr_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(5,5,"month")); 
+// var May_Image = data_collection.median().clip(roi);
+// var May_Image = Band_rename(May_Image,5);
+// var classification_image = add_Bands(classification_image,May_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(6,6,"month")); 
+// var Jun_Image = data_collection.median().clip(roi);
+// var Jun_Image = Band_rename(Jun_Image,6);
+// var classification_image = add_Bands(classification_image,Jun_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(7,7,"month")); 
+// var Jul_Image = data_collection.median().clip(roi);
+// var Jul_Image = Band_rename(Jul_Image,7);
+// var classification_image = add_Bands(classification_image,Jul_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(8,8,"month")); 
+// var Aug_Image = data_collection.median().clip(roi);
+// var Aug_Image = Band_rename(Aug_Image,8);
+// var classification_image = add_Bands(classification_image,Aug_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(9,9,"month")); 
+// var Sep_Image = data_collection.median().clip(roi);
+// var Sep_Image = Band_rename(Sep_Image,9);
+// var classification_image = add_Bands(classification_image,Sep_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(10,10,"month")); 
+// var Oct_Image = data_collection.median().clip(roi);
+// var Oct_Image = Band_rename(Oct_Image,10);
+// var classification_image = add_Bands(classification_image,Oct_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(11,11,"month")); 
+// var Nov_Image = data_collection.median().clip(roi);
+// var Nov_Image = Band_rename(Nov_Image,11);
+// var classification_image = add_Bands(classification_image,Nov_Image);
+
+// var data_collection = datasat.filter(ee.Filter.calendarRange(12,12,"month")); 
+// var Dec_Image = data_collection.median().clip(roi);
+// var Dec_Image = Band_rename(Dec_Image,12);
+// var classification_image = add_Bands(classification_image,Dec_Image);
+
+var a = 10;//seeds
+var b = 10;//size
+var c = 20;//compactness
+var d = 8;//connectivity
+var e = 40;//neigborhoodsize
+
+
+// var seedGrid_1=ee.Algorithms.Image.Segmentation.seedGrid(10);
+// var seedGrid_2=ee.Algorithms.Image.Segmentation.seedGrid(20);
+// var seedGrid_3=ee.Algorithms.Image.Segmentation.seedGrid(30);
+// var seeds=ee.ImageCollection([seedGrid_3,seedGrid_2,seedGrid_1]).mosaic()
+
+
+
+//设置种子
+var seeds = ee.Algorithms.Image.Segmentation.seedGrid(a);
+var snic = ee.Algorithms.Image.Segmentation.SNIC({
+  image: classification_image, 
+  size: b,
+  compactness: c,
+  connectivity: d,
+  neighborhoodSize:e,
+  seeds: seeds
+}).select(['1SR_B1_mean', '1SR_B2_mean', '1SR_B3_mean', '1SR_B4_mean', '1SR_B5_mean', '1SR_B6_mean', '1SR_B7_mean', 
+          '1NDVI_mean','1EVI_mean','1RVI_mean','1NDWI_mean', '1NDBI_mean',
+          '2SR_B1_mean', '2SR_B2_mean', '2SR_B3_mean', '2SR_B4_mean', '2SR_B5_mean', '2SR_B6_mean', '2SR_B7_mean', 
+          '2NDVI_mean','2EVI_mean','2RVI_mean','2NDWI_mean', '2NDBI_mean', 
+          '3SR_B1_mean', '3SR_B2_mean', '3SR_B3_mean', '3SR_B4_mean', '3SR_B5_mean', '3SR_B6_mean', '3SR_B7_mean', 
+          '3NDVI_mean','3EVI_mean','3RVI_mean','3NDWI_mean', '3NDBI_mean', 
+          '1SR_B1_contrast_mean', '1SR_B2_contrast_mean','1SR_B3_contrast_mean','1SR_B4_contrast_mean','1SR_B5_contrast_mean','1SR_B6_contrast_mean','1SR_B7_contrast_mean','1NDVI_contrast_mean','1EVI_contrast_mean','1RVI_contrast_mean','1NDWI_contrast_mean','1NDBI_contrast_mean',
+          '2SR_B1_contrast_mean', '2SR_B2_contrast_mean','2SR_B3_contrast_mean','2SR_B4_contrast_mean','2SR_B5_contrast_mean','2SR_B6_contrast_mean','2SR_B7_contrast_mean','2NDVI_contrast_mean','2EVI_contrast_mean','2RVI_contrast_mean','2NDWI_contrast_mean','2NDBI_contrast_mean',
+          '3SR_B1_contrast_mean', '3SR_B2_contrast_mean','3SR_B3_contrast_mean','3SR_B4_contrast_mean','3SR_B5_contrast_mean','3SR_B6_contrast_mean','3SR_B7_contrast_mean','3NDVI_contrast_mean','3EVI_contrast_mean','3RVI_contrast_mean','3NDWI_contrast_mean','3NDBI_contrast_mean',
+          '1SR_B1_ent_mean','1SR_B2_ent_mean','1SR_B3_ent_mean','1SR_B4_ent_mean','1SR_B5_ent_mean','1SR_B6_ent_mean','1SR_B7_ent_mean','1NDVI_ent_mean','1NDBI_ent_mean','1NDWI_ent_mean','1EVI_ent_mean','1RVI_ent_mean',
+          '2SR_B1_ent_mean','2SR_B2_ent_mean','2SR_B3_ent_mean','2SR_B4_ent_mean','2SR_B5_ent_mean','2SR_B6_ent_mean','2SR_B7_ent_mean','2NDVI_ent_mean','2NDBI_ent_mean','2NDWI_ent_mean','2EVI_ent_mean','2RVI_ent_mean',
+          '3SR_B1_ent_mean','3SR_B2_ent_mean','3SR_B3_ent_mean','3SR_B4_ent_mean','3SR_B5_ent_mean','3SR_B6_ent_mean','3SR_B7_ent_mean','3NDVI_ent_mean','3NDBI_ent_mean','3NDWI_ent_mean','3EVI_ent_mean','3RVI_ent_mean',
+          '1SR_B1_corr_mean','1SR_B2_corr_mean','1SR_B3_corr_mean','1SR_B4_corr_mean','1SR_B5_corr_mean','1SR_B6_corr_mean','1SR_B7_corr_mean','1NDVI_corr_mean','1NDBI_corr_mean','1NDWI_corr_mean','1EVI_corr_mean','1RVI_corr_mean',
+          '2SR_B1_corr_mean','2SR_B2_corr_mean','2SR_B3_corr_mean','2SR_B4_corr_mean','2SR_B5_corr_mean','2SR_B6_corr_mean','2SR_B7_corr_mean','2NDVI_corr_mean','2NDBI_corr_mean','2NDWI_corr_mean','2EVI_corr_mean','2RVI_corr_mean',
+          '3SR_B1_corr_mean','3SR_B2_corr_mean','3SR_B3_corr_mean','3SR_B4_corr_mean','3SR_B5_corr_mean','3SR_B6_corr_mean','3SR_B7_corr_mean','3NDVI_corr_mean','3NDBI_corr_mean','3NDWI_corr_mean','3EVI_corr_mean','3RVI_corr_mean',
+          '1SR_B1_diss_mean','1SR_B2_diss_mean','1SR_B3_diss_mean','1SR_B4_diss_mean','1SR_B5_diss_mean','1SR_B6_diss_mean','1SR_B7_diss_mean','1NDVI_diss_mean','1NDBI_diss_mean','1NDWI_diss_mean','1EVI_diss_mean','1RVI_diss_mean',
+          '2SR_B1_diss_mean','2SR_B2_diss_mean','2SR_B3_diss_mean','2SR_B4_diss_mean','2SR_B5_diss_mean','2SR_B6_diss_mean','2SR_B7_diss_mean','2NDVI_diss_mean','2NDBI_diss_mean','2NDWI_diss_mean','2EVI_diss_mean','2RVI_diss_mean',
+          '3SR_B1_diss_mean','3SR_B2_diss_mean','3SR_B3_diss_mean','3SR_B4_diss_mean','3SR_B5_diss_mean','3SR_B6_diss_mean','3SR_B7_diss_mean','3NDVI_diss_mean','3NDBI_diss_mean','3NDWI_diss_mean','3EVI_diss_mean','3RVI_diss_mean',
+          'clusters'], ['1SR_B1', '1SR_B2','1SR_B3','1SR_B4','1SR_B5','1SR_B6','1SR_B7','1NDVI','1EVI','1RVI','1NDWI','1NDBI',
+          '2SR_B1', '2SR_B2','2SR_B3','2SR_B4','2SR_B5','2SR_B6','2SR_B7','2NDVI','2EVI','2RVI','2NDWI','2NDBI',
+          '3SR_B1', '3SR_B2','3SR_B3','3SR_B4','3SR_B5','3SR_B6','3SR_B7','3NDVI','3EVI','3RVI','3NDWI','3NDBI',
+          '1SR_B1_contrast', '1SR_B2_contrast','1SR_B3_contrast','1SR_B4_contrast','1SR_B5_contrast','1SR_B6_contrast','1SR_B7_contrast','1NDVI_contrast','1EVI_contrast','1RVI_contrast','1NDWI_contrast','1NDBI_contrast',
+          '2SR_B1_contrast', '2SR_B2_contrast','2SR_B3_contrast','2SR_B4_contrast','2SR_B5_contrast','2SR_B6_contrast','2SR_B7_contrast','2NDVI_contrast','2EVI_contrast','2RVI_contrast','2NDWI_contrast','2NDBI_contrast',
+          '3SR_B1_contrast', '3SR_B2_contrast','3SR_B3_contrast','3SR_B4_contrast','3SR_B5_contrast','3SR_B6_contrast','3SR_B7_contrast','3NDVI_contrast','3EVI_contrast','3RVI_contrast','3NDWI_contrast','3NDBI_contrast',
+          '1SR_B1_ent','1SR_B2_ent','1SR_B3_ent','1SR_B4_ent','1SR_B5_ent','1SR_B6_ent','1SR_B7_ent','1NDVI_ent','1NDBI_ent','1NDWI_ent','1EVI_ent','1RVI_ent',
+          '2SR_B1_ent','2SR_B2_ent','2SR_B3_ent','2SR_B4_ent','2SR_B5_ent','2SR_B6_ent','2SR_B7_ent','2NDVI_ent','2NDBI_ent','2NDWI_ent','2EVI_ent','2RVI_ent',
+          '3SR_B1_ent','3SR_B2_ent','3SR_B3_ent','3SR_B4_ent','3SR_B5_ent','3SR_B6_ent','3SR_B7_ent','3NDVI_ent','3NDBI_ent','3NDWI_ent','3EVI_ent','3RVI_ent',
+          '1SR_B1_corr','1SR_B2_corr','1SR_B3_corr','1SR_B4_corr','1SR_B5_corr','1SR_B6_corr','1SR_B7_corr','1NDVI_corr','1NDBI_corr','1NDWI_corr','1EVI_corr','1RVI_corr',
+          '2SR_B1_corr','2SR_B2_corr','2SR_B3_corr','2SR_B4_corr','2SR_B5_corr','2SR_B6_corr','2SR_B7_corr','2NDVI_corr','2NDBI_corr','2NDWI_corr','2EVI_corr','2RVI_corr',
+          '3SR_B1_corr','3SR_B2_corr','3SR_B3_corr','3SR_B4_corr','3SR_B5_corr','3SR_B6_corr','3SR_B7_corr','3NDVI_corr','3NDBI_corr','3NDWI_corr','3EVI_corr','3RVI_corr',
+          '1SR_B1_diss','1SR_B2_diss','1SR_B3_diss','1SR_B4_diss','1SR_B5_diss','1SR_B6_diss','1SR_B7_diss','1NDVI_diss','1NDBI_diss','1NDWI_diss','1EVI_diss','1RVI_diss',
+          '2SR_B1_diss','2SR_B2_diss','2SR_B3_diss','2SR_B4_diss','2SR_B5_diss','2SR_B6_diss','2SR_B7_diss','2NDVI_diss','2NDBI_diss','2NDWI_diss','2EVI_diss','2RVI_diss',
+          '3SR_B1_diss','3SR_B2_diss','3SR_B3_diss','3SR_B4_diss','3SR_B5_diss','3SR_B6_diss','3SR_B7_diss','3NDVI_diss','3NDBI_diss','3NDWI_diss','3EVI_diss','3RVI_diss',
+          'clusters'])
+
+
+//clusters就是分割得到的一个个对象
+var clusters = snic.select('clusters')
+Map.addLayer(clusters.randomVisualizer(), {}, 'clusters', false)
+//Map.addLayer(snic, {bands: ['SR_B4', 'SR_B3', 'SR_B2'], min:0, max:1, gamma: 0.8}, 'means', false)
+
+ 
+//计算每个对象的 stdDev.
+var stdDev = classification_image.addBands(clusters).reduceConnectedComponents(ee.Reducer.stdDev(), 'clusters', 256)
+//Map.addLayer(stdDev, {min:0, max:0.1}, 'StdDev', false)
+ 
+var area = ee.Image.pixelArea().addBands(clusters).reduceConnectedComponents(ee.Reducer.sum(), 'clusters', 256)
+var area = area.rename('area');
+//Map.addLayer(area, {min:50000, max: 500000}, 'Cluster Area', false)
+ 
+var minMax = clusters.reduceNeighborhood(ee.Reducer.minMax(), ee.Kernel.square(1));
+var perimeterPixels = minMax.select(0).neq(minMax.select(1)).rename('perimeter');
+//Map.addLayer(perimeterPixels, {min: 0, max: 1}, 'perimeterPixels');
+ 
+var perimeter = perimeterPixels.addBands(clusters)
+    .reduceConnectedComponents(ee.Reducer.sum(), 'clusters', 256);
+//Map.addLayer(perimeter, {min: 100, max: 400}, 'Perimeter size', false);
+ 
+var sizes = ee.Image.pixelLonLat().addBands(clusters).reduceConnectedComponents(ee.Reducer.minMax(), 'clusters', 256)
+var width = sizes.select('longitude_max').subtract(sizes.select('longitude_min')).rename('width')
+var height = sizes.select('latitude_max').subtract(sizes.select('latitude_min')).rename('height')
+//Map.addLayer(width, {min:0, max:0.02}, 'Cluster width', false)
+//Map.addLayer(height, {min:0, max:0.02}, 'Cluster height', false)
+ 
+
+// var training_samples = training_sample;
+// var testing_samples = testing_sample;
+
+//var snicc = snic.select(stdDev);
+
+
+
+// var classification_image = classification_image.addBands(area2).addBands(width2).addBands(perimeter2).addBands(height2);
+// //.addBands(area1).addBands(width1).addBands(perimeter1).addBands(height1).
+// //addBands(area3).addBands(width3).addBands(perimeter3).addBands(height3);
+
+// print(classification_image)
+
+var bands = [
+            '1SR_B1','1SR_B2','1SR_B3','1SR_B4','1SR_B5','1SR_B6','1SR_B7','1NDVI','1NDWI','1NDBI','1EVI','1RVI',
+            '2SR_B1','2SR_B2','2SR_B3','2SR_B4','2SR_B5','2SR_B6','2SR_B7','2NDVI','2NDWI','2NDBI','2EVI','2RVI',
+            '3SR_B1','3SR_B2','3SR_B3','3SR_B4','3SR_B5','3SR_B6','3SR_B7','3NDVI','3NDWI','3NDBI','3EVI','3RVI',
+            '1SR_B1_contrast', '1SR_B2_contrast','1SR_B3_contrast','1SR_B4_contrast','1SR_B5_contrast','1SR_B6_contrast','1SR_B7_contrast','1NDVI_contrast','1EVI_contrast','1RVI_contrast','1NDWI_contrast','1NDBI_contrast',
+            '2SR_B1_contrast', '2SR_B2_contrast','2SR_B3_contrast','2SR_B4_contrast','2SR_B5_contrast','2SR_B6_contrast','2SR_B7_contrast','2NDVI_contrast','2EVI_contrast','2RVI_contrast','2NDWI_contrast','2NDBI_contrast',
+            '3SR_B1_contrast', '3SR_B2_contrast','3SR_B3_contrast','3SR_B4_contrast','3SR_B5_contrast','3SR_B6_contrast','3SR_B7_contrast','3NDVI_contrast','3EVI_contrast','3RVI_contrast','3NDWI_contrast','3NDBI_contrast',
+            '1SR_B1_ent','1SR_B2_ent','1SR_B3_ent','1SR_B4_ent','1SR_B5_ent','1SR_B6_ent','1SR_B7_ent','1NDVI_ent','1NDBI_ent','1NDWI_ent','1EVI_ent','1RVI_ent',
+            '2SR_B1_ent','2SR_B2_ent','2SR_B3_ent','2SR_B4_ent','2SR_B5_ent','2SR_B6_ent','2SR_B7_ent','2NDVI_ent','2NDBI_ent','2NDWI_ent','2EVI_ent','2RVI_ent',
+            '3SR_B1_ent','3SR_B2_ent','3SR_B3_ent','3SR_B4_ent','3SR_B5_ent','3SR_B6_ent','3SR_B7_ent','3NDVI_ent','3NDBI_ent','3NDWI_ent','3EVI_ent','3RVI_ent',
+            '1SR_B1_corr','1SR_B2_corr','1SR_B3_corr','1SR_B4_corr','1SR_B5_corr','1SR_B6_corr','1SR_B7_corr','1NDVI_corr','1NDBI_corr','1NDWI_corr','1EVI_corr','1RVI_corr',
+            '2SR_B1_corr','2SR_B2_corr','2SR_B3_corr','2SR_B4_corr','2SR_B5_corr','2SR_B6_corr','2SR_B7_corr','2NDVI_corr','2NDBI_corr','2NDWI_corr','2EVI_corr','2RVI_corr',
+            '3SR_B1_corr','3SR_B2_corr','3SR_B3_corr','3SR_B4_corr','3SR_B5_corr','3SR_B6_corr','3SR_B7_corr','3NDVI_corr','3NDBI_corr','3NDWI_corr','3EVI_corr','3RVI_corr',
+            '1SR_B1_diss','1SR_B2_diss','1SR_B3_diss','1SR_B4_diss','1SR_B5_diss','1SR_B6_diss','1SR_B7_diss','1NDVI_diss','1NDBI_diss','1NDWI_diss','1EVI_diss','1RVI_diss',
+            '2SR_B1_diss','2SR_B2_diss','2SR_B3_diss','2SR_B4_diss','2SR_B5_diss','2SR_B6_diss','2SR_B7_diss','2NDVI_diss','2NDBI_diss','2NDWI_diss','2EVI_diss','2RVI_diss',
+            '3SR_B1_diss','3SR_B2_diss','3SR_B3_diss','3SR_B4_diss','3SR_B5_diss','3SR_B6_diss','3SR_B7_diss','3NDVI_diss','3NDBI_diss','3NDWI_diss','3EVI_diss','3RVI_diss',
+            // '4SR_B1','4SR_B2','4SR_B3','4SR_B4','4SR_B5','4SR_B6','4SR_B7','4NDVI','4NDWI','4NDBI','4EVI','4RVI',
+            // '5SR_B1','5SR_B2','5SR_B3','5SR_B4','5SR_B5','5SR_B6','5SR_B7','5NDVI','5NDWI','5NDBI','5EVI','5RVI',
+            // '6SR_B1','6SR_B2','6SR_B3','6SR_B4','6SR_B5','6SR_B6','6SR_B7','6NDVI','6NDWI','6NDBI','6EVI','6RVI',
+            // '7SR_B1','7SR_B2','7SR_B3','7SR_B4','7SR_B5','7SR_B6','7SR_B7','7NDVI','7NDWI','7NDBI','7EVI','7RVI',
+            // '8SR_B1','8SR_B2','8SR_B3','8SR_B4','8SR_B5','8SR_B6','8SR_B7','8NDVI','8NDWI','8NDBI','8EVI','8RVI',
+            // '9SR_B1','9SR_B2','9SR_B3','9SR_B4','9SR_B5','9SR_B6','9SR_B7','9NDVI','9NDWI','9NDBI','9EVI','9RVI',
+            // '10SR_B1','10SR_B2','10SR_B3','10SR_B4','10SR_B5','10SR_B6','10SR_B7','10NDVI','10NDWI','10NDBI','10EVI','10RVI',
+            // '11SR_B1','11SR_B2','11SR_B3','11SR_B4','11SR_B5','11SR_B6','11SR_B7','11NDVI','11NDWI','11NDBI','11EVI','11RVI',
+            // '12SR_B1','12SR_B2','12SR_B3','12SR_B4','12SR_B5','12SR_B6','12SR_B7','12NDVI','12NDWI','12NDBI','12EVI','12RVI',
+            //'area','perimeter','height','width',
+            //'area2','perimeter2','height2','width2',
+            //'area3','perimeter3','height3','width3',
+            //'stdDev',
+            ];
+            
+            
+// //分类器参数设置，选择分类依据：包括了area，width等
+var classification_image = ee.Image.cat([
+  snic.select(bands),
+  //stdDev,
+  area,
+  perimeter,
+  width,
+  height
+]).float();
+print(classification_image)
+
+// var points=ee.FeatureCollection(senlin);
+// var training_samples = points.merge(gengdi).merge(renzao).merge(caodi).merge(shuiti).merge(guanmu).merge(luodi).merge(shidi).merge(bingchuan);
+
+// var points2=ee.FeatureCollection(senlin);
+var testing_samples = table2;//.merge(table3);//.merge(renzao).merge(caodi).merge(shuiti).merge(guanmu).merge(luodi).merge(shidi);
+//Map.addLayer(table2);
+
+
+var training = classification_image.select(bands).sampleRegions({
+  collection: testing_samples,
+  properties: ['landcover'],
+  scale: 30,
+  tileScale: 16
+});
+// var testing = classification_image.select(bands).sampleRegions({
+//   collection: testing_samples,
+//   properties: ['landcover'],
+//   scale: 30,
+//   tileScale: 16
+// });
+
+var withRandom = training.randomColumn('random');//样本点随机的排列
+var split = 0.7; 
+var trainingPartition = withRandom.filter(ee.Filter.lt('random', split));//筛选70%的样本作为训练样本
+var testingPartition = withRandom.filter(ee.Filter.gte('random', split));//筛选30%的样本作为测试样本
+var classProperty = 'landcover';
+
+
+
+var rf_classifier = ee.Classifier.smileRandomForest(1000).train({
+  features: trainingPartition,
+  classProperty: 'landcover',
+  inputProperties: bands
+});
+
+var rf_classified = classification_image.select(bands).classify(rf_classifier);
+Map.addLayer(rf_classified,{min: 0, max: 7, palette: ['#FAA0FF','#006400','#64FF00','#ffc82d','#0064FF','#0000FF','#FA0000','#BEBEBE']},'rf',false);
+//print('rf_classified',rf_classified)
+//print(rf_classifier.explain(),'rf_properties');
+
+var test = testingPartition.classify(rf_classifier);
+var confusionMatrix = test.errorMatrix('landcover', 'classification');
+print('confusionMatrix',confusionMatrix);
+print('overall accuracy', confusionMatrix.accuracy());
+print('kappa accuracy', confusionMatrix.kappa());
+
+
+
+
+
+// var rf_test = testingPartition.classify(rf_classifier);
+// var rf_confusionMatrix = rf_test.errorMatrix('landcover', 'classification');
+// print('rf_overall accuracy', rf_confusionMatrix.accuracy());
+// print('rf_kappa accuracy', rf_confusionMatrix.kappa());
+
+
+// // 影像领域均值平滑处理
+// smooth = image.reduceNeighborhood({
+//     'reducer':ee.Reducer.mean(),
+//     'kernel':ee.Kernel.square(3)
+// }
+// )
+// Map.addLayer(smooth, {'min':0, 'max':3000}, 'smooth dem')
+// Map.addLayer(ee.Terrain.hillshade(smooth), {}, 'smooth hillshade')
+
+
+
+//影像平滑
+//var rf_cla_smooth = rf_classified.focal_mode(3,'octagon','pixels').clip(roi);//平滑图像
+//Map.addLayer(rf_cla_smooth,{min: 0, max: 7, palette: ['#FAA0FF','#006400','#64FF00','#ffc82d','#0064FF','#0000FF','#FA0000','#BEBEBE']},'rf_end');
+
+
+// var test = testingPartition.classify(rf_classifier1);
+// var confusionMatrix = test.errorMatrix('landcover', 'classification');
+// print('confusionMatrix',confusionMatrix);
+// print('overall accuracy', confusionMatrix.accuracy());
+// print('kappa accuracy', confusionMatrix.kappa());
+
+
+Export.image.toDrive({
+  image: rf_classified.clip(table),
+      //image: composite.clip(table), 
+    // image: composite.clip(table),
+      description: 'miandian2020_5923',
+      scale: 30,
+      maxPixels:100000000000,
+    // crs:'WGS84',
+      region: table.geometry()
+    });
+    
+// Export.table.toDrive({
+//       collection : senlin,
+//       description: 'roisenlin',
+//       fileFormat:'SHP'
+//     });
+
+var testshp = testingPartition;
+
+Export.table.toDrive({
+      collection : confusionMatrix,
+      description: 'confusionMatrix',
+      //fileFormat:'CSV'
+    });
