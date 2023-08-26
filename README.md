@@ -1,4 +1,4 @@
-# MLC_1990-2020
+# MLC30_1990-2020
 Myanmar data sets and codes for 1990-2020
 
 ## Code:
@@ -10,5 +10,5 @@ Myanmar data sets and codes for 1990-2020
 
 Link: https://pan.baidu.com/s/12Q5Wt1tPjmMYqkSaM5PaeA 
 
-Extraction code:  rin3 
+
  
